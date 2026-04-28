@@ -113,6 +113,31 @@ Project "personal-memory-assistant" at ~/projects/personal-memory-assistant/. Gi
 
 Always use this format. The `project-continue` skill relies on the `Project "..." at ...` pattern to discover projects.
 
+### Phase 7: Register in Project Manifest
+
+Add the project to the shared manifest at `~/projects/hermes-skills/projects.json` so it can be restored on a new Hermes instance:
+
+```bash
+cd ~/projects/hermes-skills
+# Read current manifest, add project entry, write back
+cat projects.json | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+data['projects']['<project-name>'] = {
+  'title': '<Project Display Name>',
+  'description': '<one-line description>',
+  'path': '~/projects/<project-name>',
+  'github': 'https://github.com/<user>/<repo>',
+  'created': '$(date +%Y-%m-%d)'
+}
+json.dump(data, sys.stdout, indent=2)
+" > projects.json.tmp && mv projects.json.tmp projects.json
+
+git add -A
+git commit -m "feat: register <project-name> in project manifest"
+git push
+```
+
 ## Best Practice Doc Principles
 
 ### PRD

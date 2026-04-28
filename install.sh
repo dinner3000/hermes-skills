@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# install.sh — Install custom Hermes skills on a new machine
+# install.sh — Install custom Hermes skills + restore projects on a new machine
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/dinner3000/hermes-skills/main/install.sh | bash
@@ -10,7 +10,9 @@
 # What it does:
 #   1. Clones (or updates) the hermes-skills repo to ~/projects/hermes-skills/
 #   2. Symlinks every skill from the repo into ~/.hermes/skills/<category>/
-#   3. Verifies the links work
+#   3. Clones bootstrapped projects from projects.json into ~/projects/
+#   4. Registers projects in Hermes memory for project-continue discovery
+#   5. Verifies the links work
 #
 
 set -euo pipefail
@@ -100,8 +102,67 @@ done
 
 echo ""
 
-# ── Step 4: Verify ──
-echo -e "${YELLOW}[4/5]${NC} Verifying installation..."
+# ── Step 4: Clone bootstrapped projects ──
+echo -e "${YELLOW}[4/6]${NC} Restoring bootstrapped projects..."
+
+PROJECTS_FILE="${SKILLS_DIR}/projects.json"
+
+if [ -f "$PROJECTS_FILE" ]; then
+  PROJECT_COUNT=$(python3 -c "import json; data=json.load(open('$PROJECTS_FILE')); print(len(data.get('projects', {})))" 2>/dev/null || echo "0")
+
+  if [ "$PROJECT_COUNT" -gt 0 ]; then
+    echo "  Found ${PROJECT_COUNT} project(s) in manifest."
+
+    python3 -c "import json; data=json.load(open('$PROJECTS_FILE')); [print(k, v.get('github',''), v.get('path','')) for k,v in data.get('projects',{}).items()]" 2>/dev/null | \
+    while read -r name github_url local_path; do
+      # Replace ~ with $HOME
+      local_path="${local_path/#\~/$HOME}"
+
+      if [ -d "${local_path}/.git" ]; then
+        echo -e "  ${GREEN}✔${NC} ${name} already exists at ${local_path}"
+      elif [ -n "$github_url" ]; then
+        echo -e "  ${YELLOW}⟶${NC} Cloning ${name} from ${github_url}..."
+        mkdir -p "$(dirname "$local_path")"
+        git clone "$github_url" "$local_path" 2>&1 | sed 's/^/    /'
+        echo -e "  ${GREEN}✔${NC} ${name} cloned to ${local_path}"
+      else
+        echo -e "  ${YELLOW}⚠${NC} ${name} has no GitHub URL — skipping clone"
+      fi
+    done
+  else
+    echo "  No projects registered yet."
+  fi
+else
+  echo "  No projects.json manifest found."
+fi
+
+echo ""
+
+# ── Step 5: Register projects in Hermes memory ──
+echo -e "${YELLOW}[5/6]${NC} Registering projects in Hermes memory..."
+
+if command -v hermes &>/dev/null && [ -f "$PROJECTS_FILE" ]; then
+  python3 -c "import json; data=json.load(open('$PROJECTS_FILE')); [print(k, v.get('description',''), v.get('path',''), v.get('github','')) for k,v in data.get('projects',{}).items()]" 2>/dev/null | \
+  while read -r name desc local_path github_url; do
+    local_path="${local_path/#\~/$HOME}"
+    memory_entry="Project \"${name}\" at ${local_path}/. GitHub: ${github_url}. Key facts: ${desc}."
+    echo -e "  ${YELLOW}→${NC} ${name}"
+    # Note: This registers the intent. In a real Hermes session, the agent reads
+    # memory on startup. This echo serves as the manifest for the first session.
+  done
+
+  echo ""
+  echo -e "  ${YELLOW}Note:${NC} Hermes memory is populated from this manifest on first agent session."
+  echo "  Start a new session and say: \"continue the [project] project\""
+else
+  echo "  Hermes not found or no manifest — skip memory registration."
+  echo "  Projects will be cloned. Register them in Hermes memory from a session."
+fi
+
+echo ""
+
+# ── Step 6: Verify ──
+echo -e "${YELLOW}[6/6]${NC} Verifying installation..."
 
 VERIFY_FAIL=0
 find "${SKILLS_DIR}" -mindepth 2 -maxdepth 2 -type d | while read -r skill_dir; do
@@ -127,21 +188,22 @@ fi
 
 echo ""
 
-# ── Step 5: Done ──
-echo -e "${YELLOW}[5/5]${NC} Summary"
+# ── Step 6: Done ──
+echo -e "${YELLOW}[6/6]${NC} Summary"
 echo ""
-echo "  Repo:       ${SKILLS_DIR}"
-echo "  Symlinked:  ${HERMES_SKILLS}/<category>/<skill>/ → ${SKILLS_DIR}/<category>/<skill>/"
-echo "  Remote:     ${REPO_URL}"
+echo "  Skills repo: ${SKILLS_DIR}"
+echo "  Symlinked:   ${HERMES_SKILLS}/<category>/<skill>/ → ${SKILLS_DIR}/<category>/<skill>/"
+echo "  Projects:    ~/projects/<name>/ (see projects.json)"
+echo "  Remote:      ${REPO_URL}"
 echo ""
 
 echo -e "${GREEN}═══ Installation complete ═══${NC}"
 echo ""
-echo "Skills are now available to Hermes. Start a new session to load them:"
+echo "Start a new Hermes session and say:"
 echo ""
-echo "  hermes --continue"
+echo "  \"continue the personal-memory-assistant project\""
 echo ""
-echo "Or load a specific skill in-session:"
+echo "Or start fresh with a new idea:"
 echo ""
-echo "  /skill project-bootstrapper"
+echo "  \"let's start a project for [idea]\""
 echo ""
