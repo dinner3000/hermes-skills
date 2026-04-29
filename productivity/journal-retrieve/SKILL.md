@@ -44,6 +44,23 @@ Any question about past information that might be in the journal:
 - "Summarize my [tag] entries"
 - "Did I write about [topic]?"
 
+## Disambiguation: Journal vs Web Search
+
+The user's query may be ambiguous — "search for Rust" could mean their journal or the internet.
+
+| User says | Likely intent |
+|---|---|
+| "Search for [X] entries" | Journal — "entries" is journal-specific |
+| "Find where I [verb] [X]" | Journal — refers to past personal actions |
+| "Search my journal for [X]" | Journal — explicit |
+| "Search [X]" alone | **Ambiguous** — ask: "Search your journal or the web?" |
+| "Search the web for [X]" | Web — explicit |
+| "Look up [X]" alone | **Ambiguous** — ask to clarify |
+| "Google [X]" | Web — explicit |
+| "Find [X] online" | Web — explicit |
+
+When ambiguous, ask: "Search your journal or the web?" before proceeding.
+
 ## Process
 
 ### Step 1: Understand the Query
